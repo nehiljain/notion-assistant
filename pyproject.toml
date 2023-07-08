@@ -16,8 +16,12 @@ classifiers = [
 Changelog = "https://github.com/nehiljain/notion-assistant/releases"
 
 [tool.poetry.dependencies]
-python = "^3.7"
+python = "^3.9"
 click = ">=8.0.1"
+langchain = "^0.0.227"
+notion-client = "^2.0.0"
+pendulum = "^2.1.2"
+tiktoken = "^0.4.0"
 
 [tool.poetry.dev-dependencies]
 Pygments = ">=2.10.0"
