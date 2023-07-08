@@ -1,0 +1,15 @@
+{
+  "_output_dir": "/Users/nehiljain/code/llm-apps/notion-imputation",
+  "_repo_dir": "/Users/nehiljain/.cookiecutters/cookiecutter-hypermodern-python",
+  "_template": "gh:cjolowicz/cookiecutter-hypermodern-python",
+  "author": "Nehil Jain",
+  "copyright_year": "2023",
+  "development_status": "Development Status :: 2 - Pre-Alpha",
+  "email": "jain.nehil@gmail.com",
+  "friendly_name": "Notion Assistant",
+  "github_user": "nehiljain",
+  "license": "MIT",
+  "package_name": "notion_assistant",
+  "project_name": "notion-assistant",
+  "version": "0.0.0"
+}
