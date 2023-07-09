@@ -8,6 +8,7 @@ import requests
 from notion_client import Client
 from notion_client.helpers import iterate_paginated_api
 from thefuzz import fuzz
+from tqdm import tqdm
 
 
 notion = Client(auth=os.environ["NOTION_TOKEN"])
@@ -19,12 +20,11 @@ Page = namedtuple("Page", ["url", "id", "title"])
 def get_all_pages_for_database(database_id: str):
     """Get all the pages for a database."""
     page_collection = []
-    for block in iterate_paginated_api(notion.databases.query, database_id=database_id):
+    for block in tqdm(
+        iterate_paginated_api(notion.databases.query, database_id=database_id)
+    ):
         for page in block:
             try:
-                import pdb
-
-                pdb.set_trace()
                 page_collection += [
                     Page(
                         page["url"],
@@ -32,10 +32,11 @@ def get_all_pages_for_database(database_id: str):
                         page["properties"]["Name"]["title"][0]["plain_text"],
                     )
                 ]
-            except (IndexError, KeyError) as error:
-                print(error)
-                print(f"Page is faulty: {page['id'].replace('-', '')}")
-                if page["properties"].get("Title"):
+            except (IndexError, KeyError):
+                if (
+                    page["properties"].get("Title")
+                    and len(page["properties"]["Title"]["title"]) > 0
+                ):
                     page_collection += [
                         Page(
                             page["url"],
@@ -43,6 +44,8 @@ def get_all_pages_for_database(database_id: str):
                             page["properties"]["Title"]["title"][0]["plain_text"],
                         )
                     ]
+                else:
+                    print(f"Page is faulty: {page['id'].replace('-', '')}")
     return page_collection
 
 
@@ -50,16 +53,36 @@ def get_all_page_content_as_text(page_id: str) -> str:
     """Get all the content of a page as text by fetching the child blocks."""
     result_content = ""
     blocks = iterate_paginated_api(notion.blocks.children.list, block_id=page_id)
-    plain_text_list = [
-        text["plain_text"]
-        for blocks_page in blocks
-        for block in blocks_page
-        if "paragraph" in block and "rich_text" in block["paragraph"]
-        for text in block["paragraph"]["rich_text"]
-    ]
-    result_content += "\n\n".join(plain_text_list)
+    for blocks_page in blocks:
+        for block in blocks_page:
+            for item in [
+                "paragraph",
+                "heading_1",
+                "heading_2",
+                "heading_3",
+                "toggle",
+                "m",
+            ]:
+                if item in block and "rich_text" in block[item]:
+                    plain_text_list = [
+                        text["plain_text"] for text in block[item]["rich_text"]
+                    ]
+                    result_content += "\n\n".join(plain_text_list)
 
     return result_content
+
+
+def filter_pages_with_no_ai_analysis_content(pages: list[Page]):
+    """Filter the pages that dont have AI analysis content."""
+    pages_without_ai_analysis = []
+    for page in tqdm(pages[:20]):
+        page_content = get_all_page_content_as_text(page.id)
+        if (
+            "AI Analysis".lower() not in page_content.lower()
+            and "main points".lower() not in page_content.lower()
+        ):
+            pages_without_ai_analysis += [page]
+    return pages_without_ai_analysis
 
 
 def update_notion_database_with_parent_name(database):
@@ -82,7 +105,7 @@ def get_all_database_ids():
     database_collection = []
     db_filter = {"value": "database", "property": "object"}
     bad_database_collection = []
-    for block in iterate_paginated_api(notion.search, filter=db_filter):
+    for block in tqdm(iterate_paginated_api(notion.search, filter=db_filter)):
         for database in block:
             try:
                 database_collection += [
@@ -126,13 +149,14 @@ if __name__ == "__main__":
     # print(db)
     # print(f"Total number of databases that are faulty: {len(bdbs)}")
     # print(bdbs)
-    vault_db = filter_database_on_name(db, "old media vault")
+    vault_db = filter_database_on_name(db, "library")
     all_vault_pages = get_all_pages_for_database(vault_db.id)
+    print(f"Total number of pages in vault: {len(all_vault_pages)}")
+    pages_to_trigger = filter_pages_with_no_ai_analysis_content(all_vault_pages)
+    print(f"Total number of pages that need analysis: {len(pages_to_trigger)}")
     print("Triggerin pipedream via http")
-    trigger_pipedream_for_pages(all_vault_pages)
+    trigger_pipedream_for_pages(pages_to_trigger)
 
 # TODO: Find all the untitled pages and find a heuristic to name them
 # TODO: Find all the pages that have the same name and union them
-# TODO ADD a langchain prompt template and parser
 # TODO Figure out how to solve for max token lenght
-# TODO Add a function to get all the text as markdown from notion similar to js library
